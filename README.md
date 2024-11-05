@@ -1,6 +1,7 @@
 # safewatch_AI
 
 Data Information
+## Detection
 <li><code>0 : Human</code></li>
 <li><code>1 : Hard_hat</code></li>
 <li><code>2 : Safe_vest</code></li>
