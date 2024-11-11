@@ -1,28 +1,30 @@
 from fastapi import FastAPI
-from fastapi.responses import StreamingResponse, HTMLResponse
+from pydantic import BaseModel
+from typing import Dict
 from camera import Camera
 from detection import SafetyDetector
-from helpers import generate_frames_feed
-import uvicorn
+
+class DetectionData(BaseModel):
+    camera_id: str
+    detection_time: str
+    detection_object: Dict[str, bool]
+    image_url: str
+    risk_level: str
+    content: str
 
 app = FastAPI()
 camera = Camera()
 detector = SafetyDetector()
 
-@app.get("/")
-async def root():
-    """Root endpoint for detection results"""
+@app.post("/")  # /detection 대신 / 사용
+async def process_detection():
     frame = camera.read_frame()
     if frame is not None:
         detection_results = detector.process_detections(frame)
         if detection_results:
-            return detection_results[0]
-    return {"message": "No detection results"}
+            return {"status": "success", "data": detection_results[0]}
+    return {"status": "error", "message": "No detection results"}
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Clean up resources on shutdown"""
     camera.release()
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
