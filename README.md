@@ -9,3 +9,7 @@ Data Information
 
 ## Hand Detection
 <li><code>0 : Hand</code></li>
+
+## 라이브러리 설치
+가상환경생성후 라이브러리 설치(python version - 3.11.7)
+pip install opencv-python flask fastapi uvicorn ultralytics
