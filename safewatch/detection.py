@@ -152,7 +152,7 @@ class SafetyDetector:
             }
             
             # 위험한 상황일 때만 이미지 저장
-            if (current_time.timestamp() - self.last_capture_time >= 2 and 
+            if (current_time.timestamp() - self.last_capture_time >= 10 and 
                 risk_level != "SAFE"):
                 
                 filename = f"captures/{current_time.strftime('%Y-%m-%d_%H_%M_%S')}_{risk_level}.jpg"
