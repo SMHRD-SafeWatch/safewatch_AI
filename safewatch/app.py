@@ -15,7 +15,7 @@ except Exception as e:
 
 detector = SafetyDetector()
 
-@app.get("/scenario1")  # POST를 GET으로 변경
+@app.get("/scenario1") 
 async def process_detection():
     if camera is None:
         return {"status": "error", "message": "Camera not initialized"}

@@ -11,8 +11,13 @@ class SafetyDetector:
             'hard_hat': (0, 255, 0),
             'safety_vest': (0, 255, 255)
         }
-        self.model = YOLO('../model_5/best_full.pt')    
-        self.model.conf = 0.8
+        self.CONF_THRESHOLDS = {
+            'human': 0.8,
+            'hard_hat': 0.85,  
+            'safety_vest': 0.8
+        }
+        self.model = YOLO('../models/best_full.pt')    
+        self.model.conf = min(self.CONF_THRESHOLDS.values())  # 가장 낮은 threshold로 기본값 설정
         self.model.iou = 0.5
         self.last_capture_time = 0
 
@@ -35,16 +40,17 @@ class SafetyDetector:
             for box in boxes:
                 cls = int(box.cls[0])
                 conf = float(box.conf[0])
-                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-
+                
                 if cls >= len(self.CLASS_NAMES):
                     continue
                 
                 class_name = self.CLASS_NAMES[cls]
                 if class_name == 'box':
                     continue
-
-                if class_name in detections:
+                
+                class_threshold = self.CONF_THRESHOLDS[class_name]
+                if conf >= class_threshold:
+                    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                     detections[class_name].append({
                         'bbox': (int(x1), int(y1), int(x2), int(y2)),
                         'conf': conf
@@ -58,15 +64,24 @@ class SafetyDetector:
             person_height = py2 - py1
             person_width = px2 - px1
             
-            head_height = person_height // 3
-            head_width = person_width // 1.5
+            head_height = person_height // 7
+            head_width = person_width // 2.6
             
             head_center_x = (px1 + px2) // 2
             head_x1 = int(head_center_x - head_width // 2)
             head_x2 = int(head_center_x + head_width // 2)
             
             head_region = (head_x1, py1, head_x2, py1 + head_height)
-            body_region = (px1, py1 + head_height, px2, py2)
+            
+            gap = person_height // 15
+            
+            body_width = int(person_width * 0.7)
+            body_center_x = (px1 + px2) // 2
+            body_x1 = int(body_center_x - body_width // 2)
+            body_x2 = int(body_center_x + body_width // 2)
+            
+            body_start = py1 + head_height + gap
+            body_region = (body_x1, body_start, body_x2, py2)
             
             # 안전모 착용 확인
             helmet_detected = False
@@ -137,7 +152,7 @@ class SafetyDetector:
             }
             
             # 위험한 상황일 때만 이미지 저장
-            if (current_time.timestamp() - self.last_capture_time >= 10 and 
+            if (current_time.timestamp() - self.last_capture_time >= 2 and 
                 risk_level != "SAFE"):
                 
                 filename = f"captures/{current_time.strftime('%Y-%m-%d_%H_%M_%S')}_{risk_level}.jpg"
