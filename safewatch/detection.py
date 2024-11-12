@@ -5,14 +5,13 @@ import os
 
 class SafetyDetector:
     def __init__(self):
-        # 기존 초기화 코드 유지
         self.CLASS_NAMES = ['human', 'hard_hat', 'safety_vest']
         self.COLORS = {
             'human': (255, 255, 255),
             'hard_hat': (0, 255, 0),
             'safety_vest': (0, 255, 255)
         }
-        self.model = YOLO('model_5/best_full.pt')
+        self.model = YOLO('../model_5/best_full.pt')    
         self.model.conf = 0.8
         self.model.iou = 0.5
         self.last_capture_time = 0
@@ -114,36 +113,39 @@ class SafetyDetector:
             
             if helmet_detected:
                 cv2.rectangle(frame, 
-                             (head_region[0], head_region[1]),
-                             (head_region[2], head_region[3]),
-                             self.COLORS['hard_hat'], 2)
+                            (head_region[0], head_region[1]),
+                            (head_region[2], head_region[3]),
+                            self.COLORS['hard_hat'], 2)
             if vest_detected:
                 cv2.rectangle(frame, 
-                             (body_region[0], body_region[1]),
-                             (body_region[2], body_region[3]),
-                             self.COLORS['safety_vest'], 2)
+                            (body_region[0], body_region[1]),
+                            (body_region[2], body_region[3]),
+                            self.COLORS['safety_vest'], 2)
 
             current_time = datetime.now()
             
+            # 기본적으로 항상 detection_info를 생성하고 결과에 추가
+            detection_info = {
+                "camera_id": "CAM_001",
+                "detection_time": current_time.strftime("%Y-%m-%d %H:%M:%S"),
+                "detection_object": {
+                    "hard_hat": helmet_detected,
+                    "safety_vest": vest_detected
+                },
+                "risk_level": risk_level,
+                "content": content
+            }
+            
+            # 위험한 상황일 때만 이미지 저장
             if (current_time.timestamp() - self.last_capture_time >= 10 and 
                 risk_level != "SAFE"):
                 
                 filename = f"captures/{current_time.strftime('%Y-%m-%d_%H_%M_%S')}_{risk_level}.jpg"
                 os.makedirs('captures', exist_ok=True)
                 cv2.imwrite(filename, frame)
-                
-                detection_info = {
-                    "camera_id": "CAM_001",
-                    "detection_time": current_time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "detection_object": {
-                        "hard_hat": helmet_detected,
-                        "safety_vest": vest_detected
-                    },
-                    "image_url": filename,
-                    "risk_level": risk_level,
-                    "content": content
-                }
-                                
+                detection_info["image_url"] = filename
                 self.last_capture_time = current_time.timestamp()
+            
+            detection_results.append(detection_info)
 
         return detection_results
