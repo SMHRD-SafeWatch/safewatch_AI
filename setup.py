@@ -5,13 +5,16 @@ setup(
     version="0.1.0",
     description="Industrial Safety Detection System",
     packages=find_packages(),
+    python_requires=">=3.8",  
     install_requires=[
-        "fastapi>=0.68.0",
-        "uvicorn>=0.15.0",
-        "opencv-python>=4.5.0",
-        "ultralytics>=8.0.0",
-        "pydantic>=2.0.0",
-        "python-multipart>=0.0.5",
-        "numpy>=1.21.0",
+        "fastapi>=0.109.2",
+        "uvicorn>=0.27.1",
+        "opencv-python>=4.9.0.80",
+        "ultralytics>=8.1.27",
+        "pydantic>=2.6.1",
+        "python-multipart>=0.0.6",
+        "numpy>=1.26.4",
+        "python-dotenv>=1.0.1",
+        "cx-Oracle>=8.3.0"
     ],
 )

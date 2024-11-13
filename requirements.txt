@@ -1,7 +1,16 @@
-fastapi>=0.68.0
-uvicorn>=0.15.0
-opencv-python>=4.5.0
-ultralytics>=8.0.0
-pydantic>=2.0.0
-python-multipart>=0.0.5
-numpy>=1.21.0
+# Web Framework
+fastapi==0.109.2
+uvicorn==0.27.1
+python-dotenv==1.0.1
+
+# Computer Vision & AI
+ultralytics==8.1.27
+opencv-python==4.9.0.80
+numpy==1.26.4
+
+# Database
+cx-Oracle==8.3.0
+
+# Type Hints
+pydantic==2.6.1
+typing-extensions==4.9.0
