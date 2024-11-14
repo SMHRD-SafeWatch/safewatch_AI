@@ -7,9 +7,9 @@ class SafetyDetector:
     def __init__(self, db_connection):
         self.CLASS_NAMES = ['human', 'hard_hat', 'safety_vest']
         self.COLORS = {
-            'human': (255, 255, 255),
-            'hard_hat': (0, 255, 0),
-            'safety_vest': (0, 255, 255)
+            'human': (255, 255, 255),  # 흰색
+            'hard_hat': (0, 255, 0),   # 초록색
+            'safety_vest': (0, 255, 255)  # 노란색
         }
         self.CONF_THRESHOLDS = {
             'human': 0.8,
@@ -22,13 +22,31 @@ class SafetyDetector:
         self.db = db_connection
 
     def check_overlap(self, region1, region2):
-        """두 영역(bbox)의 겹침 여부를 확인"""
+        """두 영역(bbox)의 겹침 비율을 계산하여 임계값과 비교"""
         x1, y1, x2, y2 = region1
         x3, y3, x4, y4 = region2
-        return not ((x1 >= x4) or (x2 <= x3) or (y1 >= y4) or (y2 <= y3))
 
-    def process_detections(self, frame):
-        """프레임에서 객체를 탐지하고 안전장비 착용 여부를 확인"""
+        # 겹치는 영역 계산
+        overlap_x1 = max(x1, x3)
+        overlap_y1 = max(y1, y3)
+        overlap_x2 = min(x2, x4)
+        overlap_y2 = min(y2, y4)
+
+        # 겹치는 영역이 없으면 False 반환
+        if overlap_x2 < overlap_x1 or overlap_y2 < overlap_y1:
+            return False
+
+        # 겹치는 영역의 면적
+        overlap_area = (overlap_x2 - overlap_x1) * (overlap_y2 - overlap_y1)
+        
+        # 머리 영역의 면적
+        head_area = (x2 - x1) * (y2 - y1)
+        
+        # 겹치는 비율이 50% 이상이면 True 반환
+        return (overlap_area / head_area) >= 0.5
+
+    def process_detections(self, frame, save_to_db=True):
+        """객체를 탐지하고 결과를 반환하는 함수"""
         results = self.model(frame, verbose=False)
         detections = {
             'human': [],
@@ -36,7 +54,7 @@ class SafetyDetector:
             'safety_vest': []
         }
         
-        # 객체 검출 로직
+        # 객체 검출 로직 (기존과 동일)
         for r in results:
             boxes = r.boxes
             for box in boxes:
@@ -62,14 +80,14 @@ class SafetyDetector:
         
         # 각 사람별 처리
         for person in detections['human']:
-            # 영역 계산
+            # 영역 계산 (기존과 동일)
             px1, py1, px2, py2 = person['bbox']
             person_height = py2 - py1
             person_width = px2 - px1
             
             # 머리 영역 계산
-            head_height = person_height // 7
-            head_width = person_width // 2.6
+            head_height = int(person_height * 0.17)  
+            head_width = int(person_width * 0.4)    
             
             head_center_x = (px1 + px2) // 2
             head_x1 = int(head_center_x - head_width // 2)
@@ -79,12 +97,10 @@ class SafetyDetector:
             
             # 몸통 영역 계산
             gap = person_height // 15
-            
             body_width = int(person_width * 0.7)
             body_center_x = (px1 + px2) // 2
             body_x1 = int(body_center_x - body_width // 2)
             body_x2 = int(body_center_x + body_width // 2)
-            
             body_start = py1 + head_height + gap
             body_region = (body_x1, body_start, body_x2, py2)
             
@@ -124,48 +140,31 @@ class SafetyDetector:
                 risk_level = "SAFE"
                 content = "전부 착용"
 
-            # 시각화
-            cv2.rectangle(frame, (px1, py1), (px2, py2), self.COLORS['human'], 2)
-            
-            text_color = (0, 255, 0) if helmet_detected and vest_detected else (0, 0, 255)
-            
-            status_text = f"Safety Hat: {'OK' if helmet_detected else 'X'}"
-            status_text += f" | Vest: {'OK' if vest_detected else 'X'}"
-            
-            cv2.putText(frame, status_text, (px1, py1 - 10), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 2)
-            cv2.putText(frame, f"Risk: {risk_level}", (px1, py1 - 30), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 2)
-            
-            if helmet_detected:
-                cv2.rectangle(frame, 
-                            (head_region[0], head_region[1]),
-                            (head_region[2], head_region[3]),
-                            self.COLORS['hard_hat'], 2)
-            if vest_detected:
-                cv2.rectangle(frame, 
-                            (body_region[0], body_region[1]),
-                            (body_region[2], body_region[3]),
-                            self.COLORS['safety_vest'], 2)
-
-            current_time = datetime.now()
-            
-            detection_info = {
-                "camera_id": "CAM_001",
-                "detection_time": current_time,
-                "detection_object": ",".join(undetected_items),  # 미착용 항목들을 쉼표로 구분된 문자열로 저장
-                "risk_level": risk_level,
-                "content": content
+            person_info = {
+                'bbox': (px1, py1, px2, py2),
+                'head_region': head_region,
+                'body_region': body_region,
+                'helmet_detected': helmet_detected,
+                'vest_detected': vest_detected,
+                'risk_level': risk_level
             }
             
-            # SAFE가 아니고 미착용 항목이 있는 경우에만 DB에 저장
-            if risk_level != "SAFE" and undetected_items and self.db is not None:
+            # DB 저장은 save_to_db가 True일 때만 수행
+            if save_to_db and risk_level != "SAFE" and undetected_items and self.db is not None:
+                current_time = datetime.now()
                 try:
                     # 이미지를 바이너리 데이터로 변환
                     _, img_encoded = cv2.imencode('.jpg', frame)
                     img_bytes = img_encoded.tobytes()
                     
-                    # DB에 저장
+                    detection_info = {
+                        "camera_id": "CAM_001",
+                        "detection_time": current_time,
+                        "detection_object": ",".join(undetected_items),
+                        "risk_level": risk_level,
+                        "content": content
+                    }
+                    
                     self.db.insert_detection(
                         camera_id=detection_info["camera_id"],
                         detection_time=detection_info["detection_time"],
@@ -180,6 +179,29 @@ class SafetyDetector:
                 except Exception as e:
                     print(f"Error saving to database: {e}")
             
-            detection_results.append(detection_info)
+            detection_results.append(person_info)
+
+            # 시각화
+            cv2.rectangle(frame, (px1, py1), (px2, py2), self.COLORS['human'], 2)
+            text_color = (0, 255, 0) if helmet_detected and vest_detected else (0, 0, 255)
+            
+            status_text = f"Safety Hat: {'OK' if helmet_detected else 'X'}"
+            status_text += f" | Vest: {'OK' if vest_detected else 'X'}"
+            
+            cv2.putText(frame, status_text, (px1, py1 - 10), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 2)
+            cv2.putText(frame, f"Risk: {risk_level}", (px1, py1 - 30), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 2)
+            
+            if helmet_detected:
+                cv2.rectangle(frame, 
+                            (head_region[0], head_region[1]),
+                            (head_region[2], head_region[3]),
+                            self.COLORS['hard_hat'], 2)
+            if vest_detected:
+                cv2.rectangle(frame, 
+                            (body_region[0], body_region[1]),
+                            (body_region[2], body_region[3]),
+                            self.COLORS['safety_vest'], 2)
 
         return detection_results

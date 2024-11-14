@@ -1,12 +1,9 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
-from typing import Dict
 from camera import Camera
 from detection import SafetyDetector
 from db_config import OracleDB
 import uvicorn
 import asyncio
-import time
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -55,7 +52,8 @@ async def continuous_detection():
         try:
             frame = camera.read_frame()
             if frame is not None:
-                detection_results = detector.process_detections(frame)
+                # save_to_db=True로 설정하여 10초마다만 DB에 저장
+                detection_results = detector.process_detections(frame, save_to_db=True)
                 latest_detection_result = detection_results
                 latest_detection_time = datetime.now()
                 print(f"Detection completed at {latest_detection_time}")
@@ -63,7 +61,7 @@ async def continuous_detection():
         except Exception as e:
             print(f"Error during detection: {e}")
             
-        await asyncio.sleep(10)  # 10초 대기
+        await asyncio.sleep(10)
 
 @app.on_event("startup")
 async def startup_event():
