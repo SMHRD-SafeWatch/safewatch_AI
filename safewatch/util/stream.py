@@ -21,7 +21,7 @@ class StreamHandler:
             return None
         return self.camera.read_frame()
 
-    def generate_frames(self) -> Iterator[bytes]:
+    def generate_frames(self, draw_detection:bool = True) -> Iterator[bytes]:
         """스트리밍용 프레임 생성기"""
         while True:
             frame = self.read_frame()
@@ -29,7 +29,7 @@ class StreamHandler:
                 continue
                 
             # 바운딩 박스 표시용 detection (save_to_db=False)
-            if self.detector is not None:
+            if draw_detection and self.detector is not None:
                 try:
                     self.detector.process_detections(frame, save_to_db=False)
                 except Exception as e:
