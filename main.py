@@ -7,6 +7,8 @@ import asyncio
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
 from safewatch.util.stream import StreamHandler
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 
 app = FastAPI()
 
@@ -33,8 +35,7 @@ except Exception as e:
     print(f"Database connection failed: {e}")
     db = None
 
-# detector 초기화 시 db 연결 전달
-
+thread_pool = ThreadPoolExecutor(max_workers=3)
 
 async def continuous_detection():
     """10초마다 객체 탐지를 수행하는 백그라운드 태스크"""
@@ -43,22 +44,27 @@ async def continuous_detection():
     while detection_running:
         if not hasattr(app.state, 'stream_handler'):
             print("StreamHandler not initialized")
-            await asyncio.sleep(10)
+            await asyncio.sleep(5)
             continue
             
         try:
             # 스트리밍과 독립적으로 프레임 읽기
             frame = app.state.stream_handler.read_frame()
             if frame is not None:
-                # DB 저장을 위한 detection (save_to_db=True)
-                detection_results = app.state.stream_handler.detector.process_detections(frame, save_to_db=True)
+                # Thread Pool 활용 detection 처리
+                loop = asyncio.get_event_loop()
+                # DB 저장을 위한 detection (save_to_db=True) >> ThreadPoolExecutor 활용 처리 개선
+                detection_results = await loop.run_in_executor(thread_pool, partial(
+                    app.state.stream_handler.detector.process_detections,frame,save_to_db=True)
+                )         
+                # detection_results = app.state.stream_handler.detector.process_detections(frame, save_to_db=True)
                 latest_detection_result = detection_results
                 latest_detection_time = datetime.now()
                 print(f"Detection completed at {latest_detection_time}")
             
         except Exception as e:
             print(f"Error during detection: {e}")
-            
+        # 객체 탐지 루프 10초 
         await asyncio.sleep(10)
  
 @app.get("/", response_class=HTMLResponse)
@@ -81,6 +87,7 @@ async def startup_event():
 async def shutdown_event():
     if hasattr(app.state, 'stream_handler'):
         app.state.stream_handler.cleanup()
+    thread_pool.shutdown(wait=True)
 
 @app.get("/start_detection")
 async def start_detection():
