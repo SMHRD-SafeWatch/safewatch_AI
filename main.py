@@ -1,13 +1,16 @@
-from fastapi import FastAPI
-from camera import Camera
-from detection import SafetyDetector
-from db_config import OracleDB
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse, HTMLResponse
+from fastapi.templating import Jinja2Templates
+from safewatch.db_config import OracleDB
 import uvicorn
 import asyncio
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
+from safewatch.util.stream import StreamHandler
 
 app = FastAPI()
+
+templates = Jinja2Templates(directory="safewatch/templates")
 
 # CORS 설정
 app.add_middleware(
@@ -30,30 +33,25 @@ except Exception as e:
     print(f"Database connection failed: {e}")
     db = None
 
-try:
-    camera = Camera()
-except Exception as e:
-    camera = None
-    print(f"Camera initialization failed: {e}")
-
 # detector 초기화 시 db 연결 전달
-detector = SafetyDetector(db) if db is not None else None
+
 
 async def continuous_detection():
     """10초마다 객체 탐지를 수행하는 백그라운드 태스크"""
     global detection_running, latest_detection_result, latest_detection_time
     
     while detection_running:
-        if camera is None or detector is None:
-            print("Camera or detector not initialized")
+        if not hasattr(app.state, 'stream_handler'):
+            print("StreamHandler not initialized")
             await asyncio.sleep(10)
             continue
             
         try:
-            frame = camera.read_frame()
+            # 스트리밍과 독립적으로 프레임 읽기
+            frame = app.state.stream_handler.read_frame()
             if frame is not None:
-                # save_to_db=True로 설정하여 10초마다만 DB에 저장
-                detection_results = detector.process_detections(frame, save_to_db=True)
+                # DB 저장을 위한 detection (save_to_db=True)
+                detection_results = app.state.stream_handler.detector.process_detections(frame, save_to_db=True)
                 latest_detection_result = detection_results
                 latest_detection_time = datetime.now()
                 print(f"Detection completed at {latest_detection_time}")
@@ -62,23 +60,27 @@ async def continuous_detection():
             print(f"Error during detection: {e}")
             
         await asyncio.sleep(10)
+ 
+@app.get("/", response_class=HTMLResponse)
+async def root(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+@app.get("/stream", response_class=HTMLResponse)
+async def stream(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
 @app.on_event("startup")
 async def startup_event():
     """앱 시작 시 객체 탐지 태스크 시작"""
+    app.state.stream_handler = StreamHandler(db_connection=db)
     global detection_running
     detection_running = True
     asyncio.create_task(continuous_detection())
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """앱 종료 시 정리 작업"""
-    global detection_running
-    detection_running = False
-    if db:
-        db.close()
-    if camera:
-        camera.release()
+    if hasattr(app.state, 'stream_handler'):
+        app.state.stream_handler.cleanup()
 
 @app.get("/start_detection")
 async def start_detection():
@@ -113,15 +115,26 @@ async def get_latest_result():
         "data": latest_detection_result,
         "timestamp": latest_detection_time
     }
-
+    
+@app.get("/video_feed")
+async def video_feed():
+    return StreamingResponse(
+        app.state.stream_handler.generate_frames(),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
+    
 @app.get("/status")
 async def get_status():
     """현재 탐지 상태 조회"""
+    stream_handler = getattr(app.state, 'stream_handler', None)
+    camera_status = "connected" if (stream_handler and stream_handler.camera) else "disconnected"
+    detector_status = "initialized" if (stream_handler and stream_handler.detector) else "not initialized"
+    
     return {
         "detection_running": detection_running,
         "latest_detection_time": latest_detection_time,
-        "camera_status": "connected" if camera is not None else "disconnected",
-        "detector_status": "initialized" if detector is not None else "not initialized"
+        "camera_status": camera_status,
+        "detector_status": detector_status
     }
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 from ultralytics import YOLO
 import cv2
 from datetime import datetime
-import json
+from safewatch.util.check_overlap import check_overlap
 
 class SafetyDetector:
     def __init__(self, db_connection):
@@ -13,37 +13,13 @@ class SafetyDetector:
         }
         self.CONF_THRESHOLDS = {
             'human': 0.8,
-            'hard_hat': 0.85,  
+            'hard_hat': 0.85,
             'safety_vest': 0.8
         }
-        self.model = YOLO('../models/best_final.pt')    
+        self.model = YOLO('models/best_final.pt')    
         self.model.conf = min(self.CONF_THRESHOLDS.values())
         self.model.iou = 0.5
         self.db = db_connection
-
-    def check_overlap(self, region1, region2):
-        """두 영역(bbox)의 겹침 비율을 계산하여 임계값과 비교"""
-        x1, y1, x2, y2 = region1
-        x3, y3, x4, y4 = region2
-
-        # 겹치는 영역 계산
-        overlap_x1 = max(x1, x3)
-        overlap_y1 = max(y1, y3)
-        overlap_x2 = min(x2, x4)
-        overlap_y2 = min(y2, y4)
-
-        # 겹치는 영역이 없으면 False 반환
-        if overlap_x2 < overlap_x1 or overlap_y2 < overlap_y1:
-            return False
-
-        # 겹치는 영역의 면적
-        overlap_area = (overlap_x2 - overlap_x1) * (overlap_y2 - overlap_y1)
-        
-        # 머리 영역의 면적
-        head_area = (x2 - x1) * (y2 - y1)
-        
-        # 겹치는 비율이 50% 이상이면 True 반환
-        return (overlap_area / head_area) >= 0.5
 
     def process_detections(self, frame, save_to_db=True):
         """객체를 탐지하고 결과를 반환하는 함수"""
@@ -102,20 +78,21 @@ class SafetyDetector:
             body_x1 = int(body_center_x - body_width // 2)
             body_x2 = int(body_center_x + body_width // 2)
             body_start = py1 + head_height + gap
+            # body_end = py2-int(person_height * 0.3) # 안전조끼 부분 촬영을 상체만 할 시 불필요
             body_region = (body_x1, body_start, body_x2, py2)
             
             # 안전장비 감지
             helmet_detected = False
             for helmet in detections['hard_hat']:
                 hx1, hy1, hx2, hy2 = helmet['bbox']
-                if self.check_overlap(head_region, (hx1, hy1, hx2, hy2)):
+                if check_overlap(head_region, (hx1, hy1, hx2, hy2)):
                     helmet_detected = True
                     break
             
             vest_detected = False
             for vest in detections['safety_vest']:
                 vx1, vy1, vx2, vy2 = vest['bbox']
-                if self.check_overlap(body_region, (vx1, vy1, vx2, vy2)):
+                if check_overlap(body_region, (vx1, vy1, vx2, vy2)):
                     vest_detected = True
                     break
             
@@ -141,12 +118,12 @@ class SafetyDetector:
                 content = "전부 착용"
 
             person_info = {
-                'bbox': (px1, py1, px2, py2),
-                'head_region': head_region,
-                'body_region': body_region,
+                'detection_time': datetime.now(),  # current_time 대신 바로 현재 시간 사용
+                'detection_object': ",".join(undetected_items) if undetected_items else "None",
+                'risk_level': risk_level,
+                'content': content,
                 'helmet_detected': helmet_detected,
-                'vest_detected': vest_detected,
-                'risk_level': risk_level
+                'vest_detected': vest_detected
             }
             
             # DB 저장은 save_to_db가 True일 때만 수행

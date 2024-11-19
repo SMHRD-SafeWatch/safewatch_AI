@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Safety Detection Stream</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                margin: 20px;
+                background-color: #f0f0f0;
+            }
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+            .stream-container {
+                display: flex;
+                gap: 20px;
+                margin-top: 20px;
+            }
+            .video-container {
+                flex: 2;
+                background: white;
+                padding: 10px;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .info-container {
+                flex: 1;
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            .status-box {
+                padding: 10px;
+                margin-bottom: 10px;
+                border-radius: 4px;
+            }
+            .status-safe {
+                background-color: #d4edda;
+                color: #155724;
+            }
+            .status-warning {
+                background-color: #fff3cd;
+                color: #856404;
+            }
+            .status-danger {
+                background-color: #f8d7da;
+                color: #721c24;
+            }
+            .controls {
+                margin-top: 20px;
+            }
+            button {
+                padding: 10px 20px;
+                margin-right: 10px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+            .start-btn {
+                background-color: #28a745;
+                color: white;
+            }
+            .stop-btn {
+                background-color: #dc3545;
+                color: white;
+            }
+            h2 {
+                color: #333;
+                margin-bottom: 15px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Safety Detection System</h1>
+            <div class="stream-container">
+                <div class="video-container">
+                    <h2>Live Stream</h2>
+                    <img src="/video_feed" width="100%" style="border-radius: 4px;">
+                </div>
+                <div class="info-container">
+                    <h2>Detection Status</h2>
+                    <div id="detection-status"></div>
+                    <div id="latest-results"></div>
+                    <div class="controls">
+                        <button class="start-btn" onclick="startDetection()">Start Detection</button>
+                        <button class="stop-btn" onclick="stopDetection()">Stop Detection</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+            function updateStatus() {
+                $.get('/status', function(data) {
+                    let statusHtml = `
+                        <div class="status-box ${data.detection_running ? 'status-safe' : 'status-warning'}">
+                            <strong>Detection Status:</strong> ${data.detection_running ? 'Running' : 'Stopped'}<br>
+                            <strong>Camera Status:</strong> ${data.camera_status}<br>
+                            <strong>Detector Status:</strong> ${data.detector_status}<br>
+                            <strong>Last Detection:</strong> ${data.latest_detection_time || 'No detection yet'}
+                        </div>
+                    `;
+                    $('#detection-status').html(statusHtml);
+                });
+
+                $.get('/latest_result', function(data) {
+                    if (data.status === 'success' && data.data) {
+                        let resultsHtml = '<h3>Latest Detections</h3>';
+                        
+                        data.data.forEach(detection => {
+                            let statusClass = '';
+                            switch(detection.risk_level) {
+                                case 'SAFE': statusClass = 'status-safe'; break;
+                                case 'LOW': statusClass = 'status-warning'; break;
+                                case 'MEDIUM': statusClass = 'status-danger'; break;
+                            }
+
+                            resultsHtml += `
+                                <div class="status-box ${statusClass}">
+                                    <strong>Risk Level:</strong> ${detection.risk_level}<br>
+                                    <strong>Content:</strong> ${detection.content}<br>
+                                    <strong>Time:</strong> ${new Date(detection.detection_time).toLocaleTimeString()}
+                                </div>
+                            `;
+                        });
+                        $('#latest-results').html(resultsHtml);
+                    } else {
+                        $('#latest-results').html('<div class="status-box status-warning">No detection data available</div>');
+                    }
+                });
+            }
+
+            function startDetection() {
+                $.get('/start_detection', function(data) {
+                    updateStatus();
+                });
+            }
+
+            function stopDetection() {
+                $.get('/stop_detection', function(data) {
+                    updateStatus();
+                });
+            }
+
+            // 페이지 로드시 상태 업데이트 시작
+            updateStatus();
+            // 3초마다 상태 업데이트
+            setInterval(updateStatus, 3000);
+        </script>
+    </body>
+</html>

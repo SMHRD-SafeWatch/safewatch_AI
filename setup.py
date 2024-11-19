@@ -15,6 +15,7 @@ setup(
         "python-multipart>=0.0.6",
         "numpy>=1.26.4",
         "python-dotenv>=1.0.1",
-        "cx-Oracle>=8.3.0"
+        "cx-Oracle>=8.3.0",
+        "jinja2>=3.1.3" 
     ],
 )
