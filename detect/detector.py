@@ -22,9 +22,9 @@ class SafetyDetector:
         }
         self.CLASS_CONF_THRESHOLDS = {
             'human': 0.8,
-            'hard_hat': 0.7,
-            'safety_vest': 0.7,
-            'box': 0.85
+            'hard_hat': 0.85,
+            'safety_vest': 0.8,
+            'box': 0.9
         }
         self.model = YOLO('./best_final.pt')
         self.model.iou = 0.5
@@ -107,6 +107,15 @@ class SafetyDetector:
                     content.append("No Vest")
                 if near_box:
                     content.append("Near Box")
+        
+        # 사람이 없는 경우, 박스 상태만 평가
+        if len(detections['human']) == 0:
+            if box_stack_status == "HIGH":
+                content.append("Box Stack High")
+                risk_level = "MEDIUM"
+            elif box_stack_status == "IRREGULAR":
+                content.append("Irregular Box Stack")
+                risk_level = "HIGH"
 
         if not content and box_stack_status != "SAFE":
             content_text = box_stack_status

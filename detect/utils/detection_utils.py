@@ -5,7 +5,7 @@ def check_overlap(region1, region2):
     x3, y3, x4, y4 = region2
     return not ((x1 >= x4) or (x2 <= x3) or (y1 >= y4) or (y2 <= y3))
 
-def check_vertical_stack(detections, threshold=6, y_gap=150):
+def check_vertical_stack(detections, threshold=6, y_gap=150, x_gap=100):
     """박스가 수직으로 일정 수 이상 쌓여 있는지 확인"""
     box_centers = []
     for box in detections['box']:
@@ -17,23 +17,22 @@ def check_vertical_stack(detections, threshold=6, y_gap=150):
     if not box_centers:
         return False
 
-    # x 좌표 기준으로 그룹화
-    x_groups = {}
-    for x, y in box_centers:
-        x_group = x // 50
-        x_groups.setdefault(x_group, []).append(y)
+    # 박스 중심 좌표를 x, y로 정렬
+    box_centers.sort(key=lambda b: (b[0], b[1]))  # x 기준 정렬 후 y 기준 정렬
 
-    # y 좌표 기준으로 박스가 수직으로 쌓여 있는지 확인
-    for y_coords in x_groups.values():
-        y_coords.sort()
-        count = 1
-        for i in range(1, len(y_coords)):
-            if abs(y_coords[i] - y_coords[i - 1]) <= y_gap:
-                count += 1
-                if count >= threshold:
-                    return True
-            else:
-                count = 1
+    # 수직 스택 확인
+    stack_count = 1  # 초기 스택 카운트
+    for i in range(1, len(box_centers)):
+        x_diff = abs(box_centers[i][0] - box_centers[i - 1][0])  # x 간격
+        y_diff = abs(box_centers[i][1] - box_centers[i - 1][1])  # y 간격
+
+        if x_diff <= x_gap and y_diff <= y_gap:  # x, y 간격 모두 충족해야 스택으로 간주
+            stack_count += 1
+            if stack_count >= threshold:
+                return True
+        else:
+            stack_count = 1  # 스택 초기화
+
     return False
 
 def check_irregular_stack(detections, x_gap=100, min_boxes=3):
