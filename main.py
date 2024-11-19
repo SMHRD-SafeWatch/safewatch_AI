@@ -71,10 +71,6 @@ async def continuous_detection():
 async def root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-@app.get("/stream", response_class=HTMLResponse)
-async def stream(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
-
 @app.on_event("startup")
 async def startup_event():
     """앱 시작 시 객체 탐지 태스크 시작"""
