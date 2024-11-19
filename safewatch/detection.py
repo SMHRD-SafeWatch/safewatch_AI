@@ -4,10 +4,9 @@ from datetime import datetime
 from safewatch.util.check_overlap import check_overlap
 from safewatch.detection_config import DetectConfig
 
-config_dict = DetectConfig()
-
 class SafetyDetector:
     def __init__(self, db_connection):
+        config_dict = DetectConfig()
         self.CLASS_NAMES = config_dict['classes']
         self.COLORS = config_dict['colors']
         self.CONF_THRESHOLDS = config_dict['thresholds']
