@@ -126,8 +126,15 @@ async def get_latest_result():
 @app.get("/video_feed")
 async def video_feed():
     return StreamingResponse(
-        app.state.stream_handler.generate_frames(draw_detection=False),
+        app.state.stream_handler.generate_frames(draw_detection=True),
         media_type="multipart/x-mixed-replace; boundary=frame"
+    )
+    
+@app.get("/raw_feed")
+async def raw_feed():
+    return StreamingResponse(
+        app.state.stream_handler.generate_frames(draw_detection=False),
+        media_type = "multipart/x-mixed-replace; boundary=frame"
     )
     
 @app.get("/status")

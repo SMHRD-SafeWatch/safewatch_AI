@@ -2,21 +2,16 @@ from ultralytics import YOLO
 import cv2
 from datetime import datetime
 from safewatch.util.check_overlap import check_overlap
+from safewatch.detection_config import DetectConfig
+
+config_dict = DetectConfig()
 
 class SafetyDetector:
     def __init__(self, db_connection):
-        self.CLASS_NAMES = ['human', 'hard_hat', 'safety_vest']
-        self.COLORS = {
-            'human': (255, 255, 255),  # 흰색
-            'hard_hat': (0, 255, 0),   # 초록색
-            'safety_vest': (0, 255, 255)  # 노란색
-        }
-        self.CONF_THRESHOLDS = {
-            'human': 0.8,
-            'hard_hat': 0.85,
-            'safety_vest': 0.8
-        }
-        self.model = YOLO('models/best_final.pt')    
+        self.CLASS_NAMES = config_dict['classes']
+        self.COLORS = config_dict['colors']
+        self.CONF_THRESHOLDS = config_dict['thresholds']
+        self.model = YOLO('models/best_final.pt')
         self.model.conf = min(self.CONF_THRESHOLDS.values())
         self.model.iou = 0.5
         self.db = db_connection
