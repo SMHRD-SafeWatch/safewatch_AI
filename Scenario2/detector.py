@@ -26,7 +26,7 @@ class SafetyDetector:
             'safety_vest': 0.8,
             'box': 0.9
         }
-        self.model = YOLO('./best_final.pt')
+        self.model = YOLO('./models/best_final.pt')
         self.model.iou = 0.5
         self.last_capture_time = 0
         self.warning_delay = timedelta(seconds=30)  # 경고 알림 딜레이 시간 (30초)
