@@ -24,7 +24,7 @@ class SafetyDetector:
             'safety_vest': []
         }
         
-        # 객체 검출 로직 (기존과 동일)
+        # 객체 검출 로직 
         for r in results:
             boxes = r.boxes
             for box in boxes:
@@ -47,10 +47,17 @@ class SafetyDetector:
                     })
         
         detection_results = []
+        text_y_offset = 30 
+        
+        # 사람이 검출되지 않았을 경우 메시지 표시
+        if not detections['human']:
+            cv2.putText(frame, "No Person Detected", (10, text_y_offset), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 1)
+            return detection_results
         
         # 각 사람별 처리
         for person in detections['human']:
-            # 영역 계산 (기존과 동일)
+            # 영역 계산
             px1, py1, px2, py2 = person['bbox']
             person_height = py2 - py1
             person_width = px2 - px1
@@ -72,7 +79,6 @@ class SafetyDetector:
             body_x1 = int(body_center_x - body_width // 2)
             body_x2 = int(body_center_x + body_width // 2)
             body_start = py1 + head_height + gap
-            # body_end = py2-int(person_height * 0.3) # 안전조끼 부분 촬영을 상체만 할 시 불필요
             body_region = (body_x1, body_start, body_x2, py2)
             
             # 안전장비 감지
@@ -112,7 +118,7 @@ class SafetyDetector:
                 content = "전부 착용"
 
             person_info = {
-                'detection_time': datetime.now(),  # current_time 대신 바로 현재 시간 사용
+                'detection_time': datetime.now(),
                 'detection_object': ",".join(undetected_items) if undetected_items else "None",
                 'risk_level': risk_level,
                 'content': content,
@@ -120,11 +126,10 @@ class SafetyDetector:
                 'vest_detected': vest_detected
             }
             
-            # DB 저장은 save_to_db가 True일 때만 수행
+            # DB 저장 로직
             if save_to_db and risk_level != "SAFE" and undetected_items and self.db is not None:
                 current_time = datetime.now()
                 try:
-                    # 이미지를 바이너리 데이터로 변환
                     _, img_encoded = cv2.imencode('.jpg', frame)
                     img_bytes = img_encoded.tobytes()
                     
@@ -156,14 +161,7 @@ class SafetyDetector:
             cv2.rectangle(frame, (px1, py1), (px2, py2), self.COLORS['human'], 2)
             text_color = (0, 255, 0) if helmet_detected and vest_detected else (0, 0, 255)
             
-            status_text = f"Safety Hat: {'OK' if helmet_detected else 'X'}"
-            status_text += f" | Vest: {'OK' if vest_detected else 'X'}"
-            
-            cv2.putText(frame, status_text, (px1, py1 - 10), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 2)
-            cv2.putText(frame, f"Risk: {risk_level}", (px1, py1 - 30), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 2)
-            
+            # 사람 박스만 그리고 상태 텍스트는 좌측 상단에 표시
             if helmet_detected:
                 cv2.rectangle(frame, 
                             (head_region[0], head_region[1]),
@@ -174,5 +172,15 @@ class SafetyDetector:
                             (body_region[0], body_region[1]),
                             (body_region[2], body_region[3]),
                             self.COLORS['safety_vest'], 2)
+            
+            # 좌측 상단에 상태 텍스트 표시
+            status_text = f"Person {len(detection_results)}: Safety Hat: {'OK' if helmet_detected else 'X'}"
+            status_text += f" | Vest: {'OK' if vest_detected else 'X'}"
+            cv2.putText(frame, status_text, (10, text_y_offset), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 1)
+            cv2.putText(frame, f"Risk Level: {risk_level}", (10, text_y_offset + 20), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 1)
+            
+            text_y_offset += 50  
 
         return detection_results
