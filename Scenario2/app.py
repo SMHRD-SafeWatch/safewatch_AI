@@ -34,4 +34,4 @@ async def video_feed():
                              media_type='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == "__main__":
-   uvicorn.run(app, host="192.168.21.28", port=8000)
+   uvicorn.run(app, host="0.0.0.0", port=8000)
