@@ -119,7 +119,7 @@ class SafetyDetector:
 
             person_info = {
                 'detection_time': datetime.now(),
-                'detection_object': ",".join(undetected_items) if undetected_items else "None",
+                'detection_object': ",".join(undetected_items) if undetected_items else "None",                
                 'risk_level': risk_level,
                 'content': content,
                 'helmet_detected': helmet_detected,
@@ -136,7 +136,7 @@ class SafetyDetector:
                     detection_info = {
                         "camera_id": "CAM_001",
                         "detection_time": current_time,
-                        "detection_object": ",".join(undetected_items),
+                        'detection_object' : {'hard_hat' : helmet_detected, 'safety_vest' : vest_detected},
                         "risk_level": risk_level,
                         "content": content
                     }
@@ -177,9 +177,9 @@ class SafetyDetector:
             status_text = f"Person {len(detection_results)}: Safety Hat: {'OK' if helmet_detected else 'X'}"
             status_text += f" | Vest: {'OK' if vest_detected else 'X'}"
             cv2.putText(frame, status_text, (10, text_y_offset), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 1)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 2)
             cv2.putText(frame, f"Risk Level: {risk_level}", (10, text_y_offset + 20), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 1)
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, text_color, 2)
             
             text_y_offset += 50  
 

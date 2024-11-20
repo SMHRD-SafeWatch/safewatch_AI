@@ -55,7 +55,7 @@ async def continuous_detection():
                 loop = asyncio.get_event_loop()
                 # DB 저장을 위한 detection (save_to_db=True) >> ThreadPoolExecutor 활용 처리 개선
                 detection_results = await loop.run_in_executor(thread_pool, partial(
-                    app.state.stream_handler.detector.process_detections,frame,save_to_db=False)
+                    app.state.stream_handler.detector.process_detections,frame,save_to_db=True)
                 )         
                 # detection_results = app.state.stream_handler.detector.process_detections(frame, save_to_db=True)
                 latest_detection_result = detection_results
