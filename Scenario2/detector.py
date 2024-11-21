@@ -31,9 +31,7 @@ class SafetyDetector:
         self.last_capture_time = 0
         self.warning_delay = timedelta(seconds=30)  # 경고 알림 딜레이 시간 (30초)
         self.last_warning_time = datetime.now() - self.warning_delay
-        self.save_dir = "captures"
-        os.makedirs(self.save_dir, exist_ok=True)
-            
+
     def process_detections(self, frame):
         results = self.model(frame, verbose=False)
         detections = {cls_name: [] for cls_name in self.CLASS_NAMES}
@@ -58,23 +56,43 @@ class SafetyDetector:
                     })
 
         # 박스 상태 확인
+        current_time = datetime.now()
         box_stack_status = "SAFE"
+        if detections['box']:
+            # 박스가 감지된 경우 기존 로직 적용
+            if check_vertical_stack(detections):  # 수직 스택 상태
+                box_stack_status = "HIGH"
+            elif check_irregular_stack(detections):  # 불규칙 스택 확인
+                box_stack_status = "IRREGULAR"
+            # 박스 상태 업데이트 및 시간 기록
+            self.last_box_stack_status = box_stack_status
+            self.last_box_detected_time = current_time
+        else:
+            # 박스가 감지되지 않은 경우 이전 상태 유지 여부 판단
+            time_since_last_box = current_time - self.last_box_detected_time
+            if time_since_last_box <= self.box_status_timeout:
+                # 박스 상태 유지 시간 이내면 이전 상태 사용
+                box_stack_status = self.last_box_stack_status
+            else:
+                # 박스 상태 유지 시간이 지났으면 SAFE로 변경
+                box_stack_status = "UNKNOWN"
+                self.last_box_stack_status = "UNKNOWN"
+                
+        # 위험 수준 결정
         risk_level = "SAFE"
-        if check_vertical_stack(detections):  # 수직 스택 상태
-            box_stack_status = "HIGH"
+        if box_stack_status == "HIGH":
             risk_level = "MEDIUM"
-        elif check_irregular_stack(detections):  # 불규칙 스택 확인
-            box_stack_status = "IRREGULAR"
+        elif box_stack_status == "IRREGULAR":
             risk_level = "HIGH"
 
         # 위험 상태 초기화
         near_box = False
         helmet_detected = False
         vest_detected = False
+        content = []
 
         # 사람이 감지되었을 때 추가 위험 평가 수행
-        content = []
-        if len(detections['human']) > 0:
+        if detections['human']:
             for person in detections['human']:
                 px1, py1, px2, py2 = person['bbox']
                 helmet_detected = any(
@@ -101,22 +119,29 @@ class SafetyDetector:
                 elif box_stack_status == "IRREGULAR":
                     content.append("Irregular Box Stack")
                     risk_level = "HIGH"
+                elif box_stack_status == "UNKNOWN":
+                    content.append("Box Status Unknown")
+                    risk_level = "MEDIUM"
+
                 if not helmet_detected:
                     content.append("No Helmet")
                 if not vest_detected:
                     content.append("No Vest")
                 if near_box:
                     content.append("Near Box")
-        
-        # 사람이 없는 경우, 박스 상태만 평가
-        if len(detections['human']) == 0:
+        else:
+            # 사람이 없는 경우 박스 상태만 평가
             if box_stack_status == "HIGH":
                 content.append("Box Stack High")
                 risk_level = "MEDIUM"
             elif box_stack_status == "IRREGULAR":
                 content.append("Irregular Box Stack")
                 risk_level = "HIGH"
+            elif box_stack_status == "UNKNOWN":
+                content.append("Box Status Unknown")
+                risk_level = "HIGH"
 
+        # 최종 content_text 생성
         if not content and box_stack_status != "SAFE":
             content_text = box_stack_status
         elif not content:
@@ -179,3 +204,4 @@ class SafetyDetector:
                 print(f"Failed to insert data into database: {e}")
 
             self.last_warning_time = current_time
+
