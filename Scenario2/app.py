@@ -1,15 +1,14 @@
-# app.py
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
-from camera import Camera
-from detector import SafetyDetector
+from utils.camera import Camera
+from utils.detector import SafetyDetector
 import uvicorn
-from helpers import generate_frames_feed
+from utils.helpers import generate_frames_feed
 
 app = FastAPI()
 
 try:
-    camera = Camera()
+    camera = Camera()  # 멀티스레드 카메라 초기화
 except Exception as e:
     camera = None
     print(f"Camera initialization failed: {e}")
@@ -34,4 +33,4 @@ async def video_feed():
                              media_type='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == "__main__":
-   uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

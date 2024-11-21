@@ -1,9 +1,7 @@
-# detector.py
 from ultralytics import YOLO
 import cv2
 from datetime import datetime, timedelta
-import os
-from database import insert_detection_data
+from utils.database import insert_detection_data
 from utils.detection_utils import (
     check_overlap,
     check_vertical_stack,
@@ -22,16 +20,20 @@ class SafetyDetector:
         }
         self.CLASS_CONF_THRESHOLDS = {
             'human': 0.8,
-            'hard_hat': 0.85,
-            'safety_vest': 0.8,
+            'hard_hat': 0.7,
+            'safety_vest': 0.7,
             'box': 0.9
         }
-        self.model = YOLO('./models/best_final.pt')
+        self.model = YOLO('models\\best.pt')
         self.model.iou = 0.5
-        self.last_capture_time = 0
-        self.warning_delay = timedelta(seconds=30)  # 경고 알림 딜레이 시간 (30초)
+        self.warning_delay = timedelta(seconds=30)  # 경고 알림 딜레이 시간
         self.last_warning_time = datetime.now() - self.warning_delay
 
+        # 박스 상태 유지 관련 초기화
+        self.last_box_stack_status = "SAFE"  # 마지막 박스 상태 저장
+        self.box_status_timeout = timedelta(seconds=10)  # 박스 상태 유지 시간
+        self.last_box_detected_time = datetime.now()
+            
     def process_detections(self, frame):
         results = self.model(frame, verbose=False)
         detections = {cls_name: [] for cls_name in self.CLASS_NAMES}
@@ -59,25 +61,20 @@ class SafetyDetector:
         current_time = datetime.now()
         box_stack_status = "SAFE"
         if detections['box']:
-            # 박스가 감지된 경우 기존 로직 적용
             if check_vertical_stack(detections):  # 수직 스택 상태
                 box_stack_status = "HIGH"
             elif check_irregular_stack(detections):  # 불규칙 스택 확인
                 box_stack_status = "IRREGULAR"
-            # 박스 상태 업데이트 및 시간 기록
             self.last_box_stack_status = box_stack_status
             self.last_box_detected_time = current_time
         else:
-            # 박스가 감지되지 않은 경우 이전 상태 유지 여부 판단
             time_since_last_box = current_time - self.last_box_detected_time
             if time_since_last_box <= self.box_status_timeout:
-                # 박스 상태 유지 시간 이내면 이전 상태 사용
                 box_stack_status = self.last_box_stack_status
             else:
-                # 박스 상태 유지 시간이 지났으면 SAFE로 변경
                 box_stack_status = "UNKNOWN"
                 self.last_box_stack_status = "UNKNOWN"
-                
+
         # 위험 수준 결정
         risk_level = "SAFE"
         if box_stack_status == "HIGH":
@@ -108,7 +105,6 @@ class SafetyDetector:
                     for box_det in detections['box']
                 )
 
-                # 위험 상태 평가
                 if box_stack_status == "HIGH":
                     if near_box:
                         content.append("Box Stack High and Near Box")
@@ -175,22 +171,18 @@ class SafetyDetector:
         ]
         draw_status(frame, status_texts)
 
-        # 바운딩 박스 그리기
         draw_bounding_boxes(frame, detections, self.COLORS)
 
         return detection_info
 
     def save_risk_data(self, frame, risk_level, detection_info):
-        """위험 상황을 데이터베이스에 저장하고 이미지를 저장합니다."""
+        """위험 상황을 데이터베이스에 저장합니다."""
         current_time = datetime.now()
         if risk_level in ["HIGH", "MEDIUM"] and \
            (current_time - self.last_warning_time >= self.warning_delay):
-            filename = f"{self.save_dir}/{current_time.strftime('%Y-%m-%d_%H-%M-%S')}_risk.jpg"
-            cv2.imwrite(filename, frame)
-
             try:
-                with open(filename, "rb") as img_file:
-                    image_blob = img_file.read()
+                _, img_encoded = cv2.imencode('.jpg', frame)
+                image_blob = img_encoded.tobytes()
                 insert_detection_data(
                     camera_id=detection_info["camera_id"],
                     detection_time=current_time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -204,4 +196,3 @@ class SafetyDetector:
                 print(f"Failed to insert data into database: {e}")
 
             self.last_warning_time = current_time
-

@@ -32,4 +32,3 @@ class Camera:
         self.running = False
         self.thread.join()
         self.camera.release()
-`
