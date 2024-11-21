@@ -1,6 +1,6 @@
 #zone.py
 import cv2
-import config
+from utils import config
 import threading
 
 # 구역 표시

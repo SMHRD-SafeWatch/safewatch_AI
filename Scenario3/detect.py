@@ -3,11 +3,11 @@ import os
 from datetime import datetime
 import cv2
 from database import async_insert_detection_data
-from model import get_model
+from models.model import get_model
 import threading
-import zone
-from encode import image_encode
-import config
+from utils import zone
+from utils.encode import image_encode
+from utils import config
 
 model = get_model()
 

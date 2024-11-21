@@ -1,5 +1,5 @@
 import cv2
-import config
+from utils import config
 
 rtsp_url = f"rtsp://{config.ipcam_username}:{config.ipcam_password}@{config.ip_address}{config.stream_path}"
 

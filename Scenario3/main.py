@@ -1,7 +1,7 @@
 import cv2
 from camera import get_camera
 import detect
-import zone
+from utils import zone
 
 cap = get_camera()
 if cap is None:

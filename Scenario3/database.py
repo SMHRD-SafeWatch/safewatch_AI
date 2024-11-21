@@ -1,7 +1,5 @@
 import cx_Oracle
-import config
-import cx_Oracle
-import config
+from utils import config
 from dotenv import load_dotenv
 import threading
 
