@@ -1,6 +1,6 @@
 import cv2
-from camera import get_camera
-import detect
+from utils.camera import get_camera
+from utils import detect
 from utils import zone
 
 cap = get_camera()
