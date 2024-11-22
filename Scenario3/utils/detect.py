@@ -2,7 +2,7 @@ import time
 import os
 from datetime import datetime
 import cv2
-from database import async_insert_detection_data
+from utils.database import async_insert_detection_data
 from models.model import get_model
 import threading
 from utils import zone
