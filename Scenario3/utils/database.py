@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 import threading
 import os
 
-
 # .env 파일 로드(환경변수 보안관련 내용)
 load_dotenv()
 
@@ -22,6 +21,7 @@ dsn = cx_Oracle.makedsn(host, port, sid=id)
 def get_connection():
     """데이터베이스 연결을 반환합니다."""
     return cx_Oracle.connect(user=username, password=password, dsn=dsn)
+
 
 #DB insert
 def insert_detection_data(camera_id, detection_time, detection_object, image_url, risk_level, content):
