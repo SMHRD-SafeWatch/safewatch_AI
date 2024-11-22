@@ -2,17 +2,26 @@ import cx_Oracle
 from utils import config
 from dotenv import load_dotenv
 import threading
+import os
 
 # .env 파일 로드(환경변수 보안관련 내용)
 load_dotenv()
 
+# 데이터베이스 연결 정보 로드
+username = os.getenv("DB_USER")
+password = os.getenv("DB_PASSWORD")
+host = os.getenv("DB_HOST")
+port = os.getenv("DB_PORT")
+sid = os.getenv("DB_SID")
+
 # DSN(Data Source Name) 생성
-dsn = cx_Oracle.makedsn(config.host, config.port, sid=config.sid)
+dsn = cx_Oracle.makedsn(host, port, sid=id)
 
 # DB 연결
 def get_connection():
     """데이터베이스 연결을 반환합니다."""
-    return cx_Oracle.connect(user=config.db_username, password=config.db_password, dsn=dsn)
+    return cx_Oracle.connect(user=username, password=password, dsn=dsn)
+
 
 #DB insert
 def insert_detection_data(camera_id, detection_time, detection_object, image_url, risk_level, content):
