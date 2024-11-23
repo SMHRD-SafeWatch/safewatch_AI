@@ -6,7 +6,7 @@ from queue import Queue
 class Camera:
     def __init__(self, camera_id=1):
         self.camera = cv2.VideoCapture(camera_id)
-        self.frame_queue = Queue(maxsize=1)
+        self.frame_queue = Queue(maxsize=5)
         self.running = True
         self.setup_camera()
         self.thread = threading.Thread(target=self._read_frames, daemon=True)
