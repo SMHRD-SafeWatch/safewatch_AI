@@ -1,7 +1,8 @@
+# detoctor.py
 from ultralytics import YOLO
 import cv2
 from datetime import datetime, timedelta
-from utils.database import insert_detection_data
+from utils.database import async_insert_detection_data
 from utils.detection_utils import (
     check_overlap,
     check_vertical_stack,
@@ -24,7 +25,8 @@ class SafetyDetector:
             'safety_vest': 0.7,
             'box': 0.9
         }
-        self.model = YOLO('models\\best.pt')
+        self.model = YOLO('models/best.pt')
+        self.model.to('cuda') # GPU 사용 설정
         self.model.iou = 0.5
         self.warning_delay = timedelta(seconds=30)  # 경고 알림 딜레이 시간
         self.last_warning_time = datetime.now() - self.warning_delay
@@ -34,7 +36,7 @@ class SafetyDetector:
         self.box_status_timeout = timedelta(seconds=10)  # 박스 상태 유지 시간
         self.last_box_detected_time = datetime.now()
             
-    def process_detections(self, frame):
+    def process_detections(self, frame):        
         results = self.model(frame, verbose=False)
         detections = {cls_name: [] for cls_name in self.CLASS_NAMES}
 
@@ -178,12 +180,23 @@ class SafetyDetector:
     def save_risk_data(self, frame, risk_level, detection_info):
         """위험 상황을 데이터베이스에 저장합니다."""
         current_time = datetime.now()
+        
+        # 데이터 삽입 제어 확인
+        from utils.database import DB_INSERT_ENABLED  # DB 삽입 플래그 확인
+        if not DB_INSERT_ENABLED:
+            # 딜레이 로직 추가
+            if current_time - self.last_warning_time < timedelta(seconds=30):
+                return
+            print("DB 삽입 연결 X")
+            self.last_warning_time = current_time 
+            return
+        
         if risk_level in ["HIGH", "MEDIUM"] and \
            (current_time - self.last_warning_time >= self.warning_delay):
             try:
                 _, img_encoded = cv2.imencode('.jpg', frame)
                 image_blob = img_encoded.tobytes()
-                insert_detection_data(
+                async_insert_detection_data(
                     camera_id=detection_info["camera_id"],
                     detection_time=current_time.strftime("%Y-%m-%d %H:%M:%S"),
                     detection_object=str(detection_info["detection_object"]),
@@ -191,8 +204,8 @@ class SafetyDetector:
                     risk_level=risk_level,
                     content=detection_info["content"]
                 )
-                print("Data inserted into database successfully.")
+                print("DB 데이터 삽입 성공")
             except Exception as e:
-                print(f"Failed to insert data into database: {e}")
+                print(f"DB 데이터 삽입 실패 {e}")
 
             self.last_warning_time = current_time
